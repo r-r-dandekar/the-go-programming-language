@@ -1,12 +1,12 @@
 package main
 
 import (
-	"popcount/singleexp"
+	"fmt"
+	"math/rand/v2"
+	"popcount/clearing"
 	"popcount/loop"
 	"popcount/shifting"
-	"popcount/clearing"
-	"math/rand/v2"
-	"fmt"
+	"popcount/singleexp"
 )
 
 func main() {
