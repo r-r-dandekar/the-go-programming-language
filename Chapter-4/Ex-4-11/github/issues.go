@@ -55,6 +55,58 @@ func SearchIssues(terms []string) (*IssuesSearchResult, error) {
 	return &result, nil
 }
 
+func (c *Client) GetIssue(owner, repo string, issueNumber int) (string, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d", owner, repo, issueNumber)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	tokenStr := fmt.Sprintf("Bearer %s", c.token)
+	req.Header.Set("Authorization", tokenStr)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-GitHub-Api-Version", "2026-03-10")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("github api error (status %d): %s", resp.StatusCode, string(respBodyBytes))
+	}
+
+	var issue GetIssueResponse
+	if err := json.Unmarshal(respBodyBytes, &issue); err != nil {
+		return "", fmt.Errorf("failed to decode response json: %w", err)
+	}
+
+	labels := []string{}
+	for _, l := range issue.Labels {
+		labels = append(labels, l.Name)
+	}
+	assignees := []string{}
+	for _, u := range issue.Assignees {
+		assignees = append(assignees, u.Login)
+	}
+
+	// pretty-printed result
+	result := fmt.Sprintf("#%d - %s \t\t%v \n[%s]\n\n%v \t\tlast updated : %v\n"+
+		"----------------------------------------------------------\n\n"+
+		"%v\n\n"+
+		"----------------------------------------------------------\n"+
+		"Assigned to: %v", issue.Number, issue.Title, labels, issue.State, issue.User.Login, issue.UpdatedAt, issue.Body, assignees)
+
+	return result, nil
+}
+
 func (c *Client) CreateIssue(owner, repo string, issue CreateIssueRequest) (string, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues", owner, repo)
 
@@ -120,7 +172,7 @@ func (c *Client) UpdateIssue(owner, repo string, issueNumber int, issue map[stri
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	if resp.StatusCode != http.StatusCreated {
+	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("github api error (status %d): %s", resp.StatusCode, string(respBodyBytes))
 	}
 
